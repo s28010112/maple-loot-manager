@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>🍁 楓星報帳 v0.4</title>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getFirestore, doc, onSnapshot, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBcHasU9kyxDj0OwT65e9SkxMmsTn-exgc",
+    authDomain: "maple-loot-manager.firebaseapp.com",
+    databaseURL: "https://maple-loot-manager-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "maple-loot-manager",
+    storageBucket: "maple-loot-manager.firebasestorage.app",
+    messagingSenderId: "884969175751",
+    appId: "1:884969175751:web:8c53248db9cb81c2209ce2",
+    measurementId: "G-0MC0XL64ZT"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  window.db = getFirestore(app);
+  window.dbUtils = { doc, onSnapshot, setDoc, deleteDoc };
+</script>
+
+<style>
+    :root { --maple: #ff9900; --bg: #fdfaf4; --border: #eebb88; --danger: #ff4d4d; --blue: #3b82f6; --success: #28a745; --muted: #9a8877; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Segoe UI", "Microsoft JhengHei", sans-serif; }
+    body { background: var(--bg); padding: 20px; color: #332211; min-height: 100vh; display: flex; flex-direction: column; }
+    
+    #roomOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9999; display: flex; align-items: center; justify-content: center; }
+    .room-card { background: #fff; padding: 40px; border-radius: 20px; text-align: center; border: 5px solid var(--maple); }
+    
+    #captureArea { max-width: 1250px; margin: 0 auto; background: var(--bg); padding: 40px; border-radius: 16px; position: relative; flex: 1; width: 100%; }
+    
+    header { display: flex; justify-content: space-between; align-items: center; border-bottom: 5px solid var(--maple); padding-bottom: 20px; margin-bottom: 30px; }
+    .logo-title { font-size: 38px; font-weight: 900; color: var(--maple); letter-spacing: -1px; }
+    
+    .raid-tabs-row { display: flex; align-items: flex-end; gap: 8px; border-bottom: 3px solid var(--border); padding: 0 10px; margin-bottom: 20px; overflow-x: auto; }
+    .raid-tab { display: flex; align-items: center; gap: 8px; padding: 8px 18px; border-radius: 12px 12px 0 0; border: 2px solid var(--border); border-bottom: none; background: #f5ede0; font-weight: 900; cursor: pointer; position: relative; transition: 0.2s; min-width: 120px; }
+    .raid-tab.active { background: #fff; color: var(--maple); border-color: var(--maple); padding-bottom: 11px; margin-bottom: -3px; z-index: 2; }
+    .raid-tab input { background: transparent; border: none; font-weight: 900; color: inherit; width: 80px; outline: none; cursor: pointer; }
+    .tab-close { color: #ccc; font-size: 14px; padding: 2px 5px; border-radius: 50%; }
+    .btn-add-tab { padding: 8px 20px; border: 2px dashed var(--border); background: transparent; color: var(--muted); border-radius: 10px 10px 0 0; border-bottom: none; cursor: pointer; margin-bottom: 2px; font-weight: bold; }
+
+    .main-grid { display: grid; grid-template-columns: 1fr 480px; gap: 30px; align-items: start; }
+    .card-title { border-left: 6px solid var(--maple); padding-left: 12px; margin-bottom: 15px; font-weight: 900; font-size: 18px; color: #554433; }
+    
+    .loot-card { background: #fff; border: 2px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 20px; position: relative; box-shadow: 0 5px 0 #ddaa77; transition: 0.3s; }
+    .loot-card.is-sold { filter: grayscale(0.8); opacity: 0.7; background: #f0f0f0; } /* 已售出反灰 */
+
+    .status-badge { position: absolute; top: 15px; left: 15px; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 900; cursor: pointer; z-index: 10; border: 1px solid currentColor; }
+    .status-pending { background: #fff; color: var(--blue); }
+    .status-sold { background: var(--success); color: #fff; }
+
+    .img-area { width: 100%; border: 2px dashed #ffcc66; border-radius: 10px; margin-bottom: 15px; background: #fafafa; cursor: pointer; overflow: hidden; min-height: 100px; display: flex; align-items: center; justify-content: center; position: relative; }
+    .img-area img { width: 100%; height: auto; object-fit: contain; }
+    
+    .data-row { display: grid; grid-template-columns: 1fr 0.8fr 0.8fr; gap: 15px; }
+    .total-summary { background: var(--maple); color: white; padding: 25px; border-radius: 14px; text-align: right; margin-top: 10px; box-shadow: 0 6px 0 #cc7a00; }
+    .side-card { background: #fff; border: 2px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 20px; box-shadow: 0 5px 0 #ddaa77; }
+    
+    /* 修正隊員名單欄位 */
+    .member-item { display: grid; grid-template-columns: 1fr auto 60px 30px; align-items: center; padding: 12px 0; border-bottom: 1px solid #f8f0e8; font-weight: 800; gap: 10px; }
+    .member-amt { font-family: monospace; color: var(--maple); text-align: right; }
+    .member-item.received { color: #bbb; }
+    .member-item.received .member-amt { color: #ccc; text-decoration: line-through; }
+
+    .btn-receive { font-size: 11px; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--blue); color: var(--blue); background: transparent; cursor: pointer; font-weight: 900; }
+    .btn-receive.active { background: var(--blue); color: #fff; }
+
+    .btn { background: var(--maple); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 0 #e67e00; }
+    .btn-export { width: 100%; background: var(--blue); box-shadow: 0 6px 0 #1e40af; margin-top: 20px; font-size: 20px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+    
+    footer { text-align: center; padding: 40px 20px; color: var(--muted); font-weight: bold; font-size: 14px; margin-top: auto; }
+    .no-export { display: block; }
+</style>
+</head>
+<body>
+
+<div id="roomOverlay">
+    <div class="room-card">
+        <h2 style="color:var(--maple); margin-bottom:20px;">🍁 進入報帳系統</h2>
+        <input type="text" id="roomCodeInp" placeholder="輸入房間代碼" style="padding:15px; width:250px; font-size:20px; text-align:center; border:2px solid var(--maple); border-radius:10px; margin-bottom:20px;">
+        <br><button onclick="joinRoom()" class="btn">進入連線</button>
+    </div>
+</div>
+
+<div id="captureArea">
+    <div class="raid-tabs-row no-export" id="raidTabsRow"></div>
+    <header>
+        <div>
+            <h1 class="logo-title">🍁 楓星報帳</h1>
+            <div style="display: flex; align-items: center; margin-top: 5px;">
+                <small id="roomLabel" style="color:var(--blue); font-weight:bold;">ROOM: ----</small>
+                <button onclick="clearRoomData()" class="btn no-export" style="background:var(--danger); font-size:11px; padding:3px 8px; margin-left:10px; box-shadow:0 2px 0 #cc0000;">🗑️ 清除此房間資料</button>
+            </div>
+        </div>
+        <div style="text-align: right; background: #fff; padding: 15px 30px; border: 3px solid var(--maple); border-radius: 12px; box-shadow: 0 4px 0 var(--maple);">
+            <small style="font-weight:900; color:#9a8877; display:block;">每人實收分紅</small>
+            <span id="displayIndividual" style="font-size: 52px; font-weight: 900; color: var(--maple); font-family: monospace;">0</span>
+        </div>
+    </header>
+
+    <div class="main-grid">
+        <div id="leftColumn">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;" class="no-export">
+                <h3 class="card-title">戰利品清單</h3>
+                <button onclick="addRow()" class="btn">＋ 新增戰利品</button>
+            </div>
+            <div id="lootContainer"></div>
+            <div class="total-summary">
+                <div style="font-size:14px; opacity:0.9; margin-bottom:4px;">全數售出預估 (稅後)：<span id="displayExpectTotal">0</span></div>
+                <div style="font-size:14px; color:#ffeb3b; margin-bottom:4px; font-weight:800;">目前已售實收：<span id="displayRawTotal">0</span></div>
+                <div style="font-size:14px; opacity:0.9; border-bottom:1px solid rgba(255,255,255,0.3); padding-bottom:8px; margin-bottom:8px;">剪刀成本扣除：-<span id="displayScissorTotal">0</span></div>
+                <span style="font-weight:900; font-size:18px;">實收總盈餘：</span>
+                <span id="displayTotal" style="font-size:42px; font-weight:900; margin-left:10px;">0</span>
+            </div>
+            <button onclick="exportImage()" class="btn btn-export no-export">📸 匯出高清報帳圖</button>
+        </div>
+
+        <div id="rightColumn">
+            <h3 class="card-title">報帳參數設定</h3>
+            <div class="side-card">
+                <div class="data-row" style="grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div style="display:flex; flex-direction:column; min-width: 0;"><label style="font-size:12px; color:var(--muted); font-weight:900;">手續費 (%)</label><input type="number" id="taxInp" value="3" oninput="saveAndCalc()" style="width: 100%; border:none; border-bottom:2px solid #eee; font-size:18px; font-weight:800; padding:5px 0; outline:none; background:transparent;"></div>
+                    <div style="display:flex; flex-direction:column; min-width: 0;"><label style="font-size:12px; color:var(--muted); font-weight:900;">1000萬換里程</label><input type="number" id="mileageInTenMil" value="0" oninput="updateScissorPrices()" style="width: 100%; border:none; border-bottom:2px solid #eee; font-size:18px; font-weight:800; padding:5px 0; outline:none; background:transparent;"></div>
+                </div>
+            </div>
+            <div class="side-card">
+                <h3 class="card-title" style="border:none; padding:0; margin-bottom:10px;">分紅名單</h3>
+                <div style="display:flex; gap:8px; margin-bottom:15px;" class="no-export">
+                    <input type="text" id="memInp" placeholder="隊員名稱" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:5px;">
+                    <button onclick="addMem()" class="btn" style="padding:0 15px;">ADD</button>
+                </div>
+                <div id="memList"></div>
+            </div>
+            <h3 class="card-title">剪刀成本</h3>
+            <div class="side-card">
+                <div class="data-row" style="grid-template-columns: 1fr 0.6fr 1fr;">
+                    <div><label style="font-size:11px; color:var(--muted);">神奇(3900p)</label><input type="number" id="sc1_p" value="0" oninput="saveAndCalc()" style="width:100%; border:none; border-bottom:1px solid #eee; font-family:monospace;"></div>
+                    <div><label style="font-size:11px; color:var(--muted);">數量</label><input type="number" id="sc1_q" value="0" oninput="saveAndCalc()" style="width:100%; border:none; border-bottom:1px solid #eee; font-family:monospace;"></div>
+                    <div style="text-align:right;"><label style="font-size:11px; color:var(--muted);">小計</label><div id="sc1_total" style="font-weight:bold; font-family:monospace;">0</div></div>
+                </div>
+                <div class="data-row" style="margin-top:15px; grid-template-columns: 1fr 0.6fr 1fr;">
+                    <div><label style="font-size:11px; color:var(--muted);">白金(7100p)</label><input type="number" id="sc2_p" value="0" oninput="saveAndCalc()" style="width:100%; border:none; border-bottom:1px solid #eee; font-family:monospace;"></div>
+                    <div><label style="font-size:11px; color:var(--muted);">數量</label><input type="number" id="sc2_q" value="0" oninput="saveAndCalc()" style="width:100%; border:none; border-bottom:1px solid #eee; font-family:monospace;"></div>
+                    <div style="text-align:right;"><label style="font-size:11px; color:var(--muted);">小計</label><div id="sc2_total" style="font-weight:bold; font-family:monospace;">0</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer>
+    作者：黃老哥 | 當前版本：v0.4
+</footer>
+
+<script>
+let currentRoomId = '';
+let raids = [];
+let activeRaidId = null;
+let items = [];
+let members = [];
+let unsubscribe = null;
+let syncTimer;
+
+async function joinRoom() {
+    const code = document.getElementById('roomCodeInp').value.trim();
+    if (!code) return;
+    currentRoomId = code;
+    document.getElementById('roomOverlay').style.display = 'none';
+    document.getElementById('roomLabel').innerText = `ROOM: ${currentRoomId}`;
+    const roomRef = window.dbUtils.doc(window.db, "rooms", currentRoomId);
+    if (unsubscribe) unsubscribe();
+    unsubscribe = window.dbUtils.onSnapshot(roomRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            raids = data.raids || [];
+            activeRaidId = data.activeRaidId || (raids[0]?.id);
+            loadActiveData();
+        } else {
+            resetToDefault();
+            saveToCloud();
+        }
+    });
+}
+
+function resetToDefault() {
+    raids = [{ id: 'r1', name: '第 1 場', data: { items: [], members: [], tax: '3', mileage: '0', sc1_p:0, sc1_q:0, sc2_p:0, sc2_q:0 } }];
+    activeRaidId = 'r1';
+    loadActiveData();
+}
+
+async function clearRoomData() {
+    if (!currentRoomId) return;
+    if (confirm(`⚠️ 確定要清除房間 [${currentRoomId}] 的所有資料嗎？`)) {
+        await window.dbUtils.deleteDoc(window.dbUtils.doc(window.db, "rooms", currentRoomId));
+        location.reload();
+    }
+}
+
+function loadActiveData() {
+    const r = raids.find(x => x.id === activeRaidId);
+    if (!r) {
+        if (raids.length > 0) { activeRaidId = raids[0].id; loadActiveData(); }
+        else { resetToDefault(); }
+        return;
+    }
+    items = r.data.items || [];
+    members = r.data.members || [];
+    document.getElementById('taxInp').value = r.data.tax || '3';
+    document.getElementById('mileageInTenMil').value = r.data.mileage || '0';
+    document.getElementById('sc1_p').value = r.data.sc1_p || 0;
+    document.getElementById('sc1_q').value = r.data.sc1_q || 0;
+    document.getElementById('sc2_p').value = r.data.sc2_p || 0;
+    document.getElementById('sc2_q').value = r.data.sc2_q || 0;
+    render();
+    renderTabs();
+    calculateTotalUI();
+}
+
+async function saveToCloud() {
+    if (!currentRoomId) return;
+    const r = raids.find(x => x.id === activeRaidId);
+    if (r) {
+        r.data = { 
+            items, members, 
+            tax: document.getElementById('taxInp').value,
+            mileage: document.getElementById('mileageInTenMil').value,
+            sc1_p: document.getElementById('sc1_p').value, sc1_q: document.getElementById('sc1_q').value,
+            sc2_p: document.getElementById('sc2_p').value, sc2_q: document.getElementById('sc2_q').value,
+        };
+    }
+    await window.dbUtils.setDoc(window.dbUtils.doc(window.db, "rooms", currentRoomId), { raids, activeRaidId });
+}
+
+function saveAndCalc() { calculateTotalUI(); clearTimeout(syncTimer); syncTimer = setTimeout(saveToCloud, 1000); }
+
+function renderTabs() {
+    const row = document.getElementById('raidTabsRow');
+    let html = raids.map(r => `
+        <div class="raid-tab ${r.id === activeRaidId ? 'active' : ''}" onclick="activeRaidId='${r.id}'; loadActiveData();">
+            <input type="text" value="${r.name}" onclick="event.stopPropagation()" onchange="renameTab('${r.id}', this.value)">
+            <span class="tab-close" onclick="event.stopPropagation(); deleteTab('${r.id}')">✕</span>
+        </div>
+    `).join('');
+    html += `<button class="btn-add-tab" onclick="addTab()">＋ 新增場次</button>`;
+    row.innerHTML = html;
+}
+
+function renameTab(id, newName) { const r = raids.find(x => x.id === id); if (r) r.name = newName; saveToCloud(); }
+function addTab() {
+    const newId = 'r' + Date.now();
+    raids.push({id: newId, name: '新場次', data: {items:[], members:[], tax:'3', mileage:'0', sc1_p:0, sc1_q:0, sc2_p:0, sc2_q:0}});
+    activeRaidId = newId; loadActiveData(); saveToCloud();
+}
+function deleteTab(id) {
+    if (raids.length <= 1) return alert("至少保留一個場次");
+    if (confirm("確定刪除場次？")) {
+        raids = raids.filter(r => r.id !== id);
+        if (activeRaidId === id) activeRaidId = raids[0].id;
+        loadActiveData(); saveToCloud();
+    }
+}
+
+function toggleStatus(id) {
+    const item = items.find(i => i.id === id);
+    item.status = item.status === 'sold' ? 'pending' : 'sold';
+    render(); saveAndCalc();
+}
+
+function render() {
+    const tax = 1 - (+document.getElementById('taxInp').value / 100);
+    document.getElementById('lootContainer').innerHTML = items.map(i => `
+        <div class="loot-card ${i.status === 'sold' ? 'is-sold' : ''}"> <div class="status-badge ${i.status === 'sold' ? 'status-sold' : 'status-pending'}" onclick="toggleStatus(${i.id})">
+                ${i.status === 'sold' ? '✓ 已售出' : '⏳ 待售中'}
+            </div>
+            <div class="img-area" onpaste="handlePaste(${i.id}, event)" tabindex="0">
+                ${i.img ? `<img src="${i.img}">` : '<div style="color:#ccb; font-weight:900;">Ctrl+V 貼圖</div>'}
+            </div>
+            <div class="data-row">
+                <div><label style="font-size:11px; color:var(--muted);">物品</label><input type="text" value="${i.name}" oninput="items.find(x=>x.id===${i.id}).name=this.value; saveAndCalc()" style="width:100%; border:none; font-weight:800; background:transparent;"></div>
+                <div><label style="font-size:11px; color:var(--muted);">成交</label><input type="number" value="${i.price}" oninput="items.find(x=>x.id===${i.id}).price=+this.value; saveAndCalc()" style="width:100%; border:none; font-weight:800; color:var(--maple); background:transparent;"></div>
+                <div><label style="font-size:11px; color:var(--muted);">實收</label><div style="font-weight:900;">${Math.floor(i.price * tax).toLocaleString()}</div></div>
+            </div>
+            <button class="no-export" onclick="items=items.filter(x=>x.id!==${i.id}); render(); saveAndCalc()" style="position:absolute; top:15px; right:15px; background:none; border:none; color:var(--danger); cursor:pointer; font-size:18px;">✕</button>
+        </div>`).join('');
+}
+
+async function handlePaste(id, e) {
+    const file = e.clipboardData.files[0]; if (!file) return;
+    const reader = new FileReader();
+    const item = items.find(i => i.id === id);
+    reader.onload = async (ev) => {
+        item.img = ev.target.result; render(); 
+        try {
+            const worker = await Tesseract.createWorker('eng');
+            const { data } = await worker.recognize(item.img);
+            const nums = data.text.replace(/,/g, '').match(/\d{6,15}/g);
+            if (nums) item.price = Math.max(...nums.map(Number));
+            await worker.terminate();
+        } finally { render(); saveAndCalc(); }
+    };
+    reader.readAsDataURL(file);
+}
+
+function updateScissorPrices() {
+    const m = +document.getElementById('mileageInTenMil').value;
+    if (m > 0) {
+        const rate = 10000000 / m;
+        document.getElementById('sc1_p').value = Math.floor(rate * 3900);
+        document.getElementById('sc2_p').value = Math.floor(rate * 7100);
+    }
+    saveAndCalc();
+}
+
+function calculateTotalUI() {
+    const tax = 1 - (+document.getElementById('taxInp').value / 100);
+    const scTotal = (+document.getElementById('sc1_p').value * +document.getElementById('sc1_q').value) + (+document.getElementById('sc2_p').value * +document.getElementById('sc2_q').value);
+    
+    document.getElementById('sc1_total').innerText = (+document.getElementById('sc1_p').value * +document.getElementById('sc1_q').value).toLocaleString();
+    document.getElementById('sc2_total').innerText = (+document.getElementById('sc2_p').value * +document.getElementById('sc2_q').value).toLocaleString();
+
+    const expectTotal = items.reduce((s, i) => s + Math.floor(i.price * tax), 0);
+    const rawTotal = items.filter(i => i.status === 'sold').reduce((s, i) => s + Math.floor(i.price * tax), 0);
+    const finalTotal = rawTotal - scTotal;
+    const indv = Math.floor(finalTotal / (members.length + 1));
+
+    document.getElementById('displayExpectTotal').innerText = expectTotal.toLocaleString();
+    document.getElementById('displayRawTotal').innerText = rawTotal.toLocaleString();
+    document.getElementById('displayScissorTotal').innerText = scTotal.toLocaleString();
+    document.getElementById('displayTotal').innerText = (finalTotal > 0 ? finalTotal : 0).toLocaleString();
+    document.getElementById('displayIndividual').innerText = (indv > 0 ? indv : 0).toLocaleString();
+
+    // 渲染分紅名單與領取按鈕
+    let mHtml = `<div class="member-item"><span>👑 隊長</span><span class="member-amt">${(indv > 0 ? indv : 0).toLocaleString()}</span><span></span><span></span></div>`;
+    mHtml += members.map((m, idx) => `
+        <div class="member-item ${m.received ? 'received' : ''}">
+            <span>${m.name}</span>
+            <span class="member-amt">${(indv > 0 ? indv : 0).toLocaleString()}</span>
+            <button class="btn-receive ${m.received ? 'active' : ''} no-export" onclick="toggleReceive(${idx})">
+                ${m.received ? '已領' : '領取'}
+            </button>
+            <span class="no-export" onclick="members.splice(${idx},1);saveAndCalc()" style="cursor:pointer; color:#ccc; text-align:center;">✕</span>
+        </div>`).join('');
+    document.getElementById('memList').innerHTML = mHtml;
+}
+
+// 切換領取狀態
+function toggleReceive(idx) {
+    members[idx].received = !members[idx].received;
+    saveAndCalc();
+}
+
+function addRow() { items.push({ id: Date.now(), name: '', price: 0, img: null, status: 'pending' }); render(); saveAndCalc(); }
+function addMem() { const inp = document.getElementById('memInp'); if(inp.value){members.push({name:inp.value, received: false}); inp.value=''; saveAndCalc();} }
+
+async function exportImage() {
+    const area = document.getElementById('captureArea');
+    const noExports = document.querySelectorAll('.no-export');
+    noExports.forEach(el => el.style.display = 'none');
+    try {
+        const canvas = await html2canvas(area, { backgroundColor: "#fdfaf4", scale: 2 });
+        const link = document.createElement('a');
+        link.download = `楓星報帳_${new Date().toLocaleTimeString()}.png`;
+        link.href = canvas.toDataURL(); link.click();
+    } finally { noExports.forEach(el => el.style.display = ''); }
+}
+</script>
+</body>
+</html>
