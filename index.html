@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>楓星報帳 v0.5</title>
+<title>楓星報帳 v0.5.1</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍁</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -215,7 +215,7 @@
             <div id="memList"></div>
         </div>
 
-        <h3 class="card-title">剪刀成本</h3>
+        <h3 class="card-title">剪刀天氣成本</h3>
         <div class="side-card">
             <div class="data-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 5px;">
                 <div style="display:flex; flex-direction:column;">
@@ -240,6 +240,18 @@
                 </div>
             </div>
             <div style="text-align:right; font-size:14px; color:var(--muted);">白金小計: <span id="sc2_total" style="font-weight:800;">0</span></div>
+
+            <div class="data-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 15px; margin-bottom: 5px;">
+                <div style="display:flex; flex-direction:column;">
+                    <label style="font-size:12px; color:var(--muted); font-weight:900;">天氣(350p)</label>
+                    <input type="number" id="sc3_p" value="0" readonly style="width: 100%; border:none; border-bottom:2px solid #eee; font-size:18px; font-weight:800; padding:5px 0; outline:none; background:transparent;">
+                </div>
+                <div style="display:flex; flex-direction:column;">
+                    <label style="font-size:12px; color:var(--muted); font-weight:900;">數量</label>
+                    <input type="number" id="sc3_q" value="0" oninput="saveAndCalc()" style="width: 100%; border:none; border-bottom:2px solid #eee; font-size:18px; font-weight:800; padding:5px 0; outline:none; background:transparent;">
+                </div>
+            </div>
+            <div style="text-align:right; font-size:14px; color:var(--muted);">天氣小計: <span id="sc3_total" style="font-weight:800;">0</span></div>
         </div>
 		<h3 class="card-title no-export">物魔攻換算工具</h3>
 		<div class="side-card no-export">
@@ -272,7 +284,7 @@
 </div>
 
 <footer>
-    <div style="margin-bottom: 8px;">© 2026 作者: 黃老哥 | 當前版本：v0.5</div>
+    <div style="margin-bottom: 8px;">© 2026 作者: 黃老哥 | 當前版本：v0.5.1</div>
 	<div style="font-size: 11px; opacity: 0.7;">Maple Raid Loot Manager All Rights Reserved.</div>
 </footer>
 
@@ -281,7 +293,7 @@
 <div class="pdf-modal-overlay" id="pdfModal" onclick="closePdfModal(event)">
     <div class="pdf-modal" onclick="event.stopPropagation()">
         <div class="pdf-modal-header">
-            <div class="pdf-modal-title">📖 楓星報帳 使用手冊 v0.5</div>
+            <div class="pdf-modal-title">📖 楓星報帳 使用手冊 v0.5.1</div>
             <button class="pdf-modal-close" onclick="closePdfModal()" title="關閉">✕</button>
         </div>
         <div class="pdf-modal-body">
@@ -321,7 +333,7 @@ async function joinRoom() {
 }
 
 function resetToDefault() {
-    raids = [{ id: 'r1', name: '第 1 場', data: { items: [], members: [], tax: '3', mileage: '0', sc1_p:0, sc1_q:0, sc2_p:0, sc2_q:0 } }];
+    raids = [{ id: 'r1', name: '第 1 場', data: { items: [], members: [], tax: '3', mileage: '0', sc1_p:0, sc1_q:0, sc2_p:0, sc2_q:0, sc3_p:0, sc3_q:0 } }];
     activeRaidId = 'r1';
     loadActiveData();
 }
@@ -349,6 +361,8 @@ function loadActiveData() {
     document.getElementById('sc1_q').value = r.data.sc1_q || 0;
     document.getElementById('sc2_p').value = r.data.sc2_p || 0;
     document.getElementById('sc2_q').value = r.data.sc2_q || 0;
+    document.getElementById('sc3_p').value = r.data.sc3_p || 0;
+    document.getElementById('sc3_q').value = r.data.sc3_q || 0;
     render();
     renderTabs();
     calculateTotalUI();
@@ -364,6 +378,7 @@ async function saveToCloud() {
             mileage: document.getElementById('mileageInTenMil').value,
             sc1_p: document.getElementById('sc1_p').value, sc1_q: document.getElementById('sc1_q').value,
             sc2_p: document.getElementById('sc2_p').value, sc2_q: document.getElementById('sc2_q').value,
+            sc3_p: document.getElementById('sc3_p').value, sc3_q: document.getElementById('sc3_q').value,
         };
     }
     await window.dbUtils.setDoc(window.dbUtils.doc(window.db, "rooms", currentRoomId), { raids, activeRaidId });
@@ -386,7 +401,7 @@ function renderTabs() {
 function renameTab(id, newName) { const r = raids.find(x => x.id === id); if (r) r.name = newName; saveToCloud(); }
 function addTab() {
     const newId = 'r' + Date.now();
-    raids.push({id: newId, name: '新場次', data: {items:[], members:[], tax:'3', mileage:'0', sc1_p:0, sc1_q:0, sc2_p:0, sc2_q:0}});
+    raids.push({id: newId, name: '新場次', data: {items:[], members:[], tax:'3', mileage:'0', sc1_p:0, sc1_q:0, sc2_p:0, sc2_q:0, sc3_p:0, sc3_q:0}});
     activeRaidId = newId; loadActiveData(); saveToCloud();
 }
 function deleteTab(id) {
@@ -538,16 +553,21 @@ function updateScissorPrices() {
         const rate = 10000000 / m;
         document.getElementById('sc1_p').value = Math.floor(rate * 3900);
         document.getElementById('sc2_p').value = Math.floor(rate * 7100);
+        document.getElementById('sc3_p').value = Math.floor(rate * 350);
     }
     saveAndCalc();
 }
 
 function calculateTotalUI() {
     const tax = 1 - (+document.getElementById('taxInp').value / 100);
-    const scTotal = (+document.getElementById('sc1_p').value * +document.getElementById('sc1_q').value) + (+document.getElementById('sc2_p').value * +document.getElementById('sc2_q').value);
-    
-    document.getElementById('sc1_total').innerText = (+document.getElementById('sc1_p').value * +document.getElementById('sc1_q').value).toLocaleString();
-    document.getElementById('sc2_total').innerText = (+document.getElementById('sc2_p').value * +document.getElementById('sc2_q').value).toLocaleString();
+    const sc1Sub = +document.getElementById('sc1_p').value * +document.getElementById('sc1_q').value;
+    const sc2Sub = +document.getElementById('sc2_p').value * +document.getElementById('sc2_q').value;
+    const sc3Sub = +document.getElementById('sc3_p').value * +document.getElementById('sc3_q').value;
+    const scTotal = sc1Sub + sc2Sub + sc3Sub;
+
+    document.getElementById('sc1_total').innerText = sc1Sub.toLocaleString();
+    document.getElementById('sc2_total').innerText = sc2Sub.toLocaleString();
+    document.getElementById('sc3_total').innerText = sc3Sub.toLocaleString();
 
     const expectTotal = items.reduce((s, i) => s + getItemNet(i, tax), 0);
     const rawTotal = items.filter(i => i.status === 'sold').reduce((s, i) => s + getItemNet(i, tax), 0);
