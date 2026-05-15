@@ -457,8 +457,8 @@ function preprocessForOCR(imgSrc) {
         img.onload = () => {
             // ── 步驟 1：ROI 切割 ──
             // 楓之谷拍賣行截圖，價格固定在右側區域
-            // 跳過最左側 20%（物品圖示＋數量標示），避免圖示上的「1」被誤辨為價格
-            const roiStartX = Math.floor(img.width * 0.30);
+            // 跳過最左側 23%（物品圖示＋數量標示），避免圖示上的「1」被誤辨為價格
+            const roiStartX = Math.floor(img.width * 0.23);
             const roiWidth  = img.width - roiStartX;
 
             const SCALE = 4; // 放大 4 倍，小字辨識更準
