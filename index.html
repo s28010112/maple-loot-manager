@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>楓星報帳 v0.5.2</title>
+<title>楓星報帳 v0.5.1</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍁</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -284,7 +284,7 @@
 </div>
 
 <footer>
-    <div style="margin-bottom: 8px;">© 2026 作者: 黃老哥 | 當前版本：v0.5.2</div>
+    <div style="margin-bottom: 8px;">© 2026 作者: 黃老哥 | 當前版本：v0.5.1</div>
 	<div style="font-size: 11px; opacity: 0.7;">Maple Raid Loot Manager All Rights Reserved.</div>
 </footer>
 
@@ -293,7 +293,7 @@
 <div class="pdf-modal-overlay" id="pdfModal" onclick="closePdfModal(event)">
     <div class="pdf-modal" onclick="event.stopPropagation()">
         <div class="pdf-modal-header">
-            <div class="pdf-modal-title">📖 楓星報帳 使用手冊 v0.5.2</div>
+            <div class="pdf-modal-title">📖 楓星報帳 使用手冊 v0.5.1</div>
             <button class="pdf-modal-close" onclick="closePdfModal()" title="關閉">✕</button>
         </div>
         <div class="pdf-modal-body">
@@ -449,35 +449,23 @@ function render() {
     }).join('');
 }
 
-// 圖片前處理：ROI 切割 + 放大 + 灰階 + 反色 + 對比強化 + 二值化
+// 圖片前處理：放大 + 灰階 + 反色（深色背景）+ 對比強化
 // 只用於 OCR 辨識，原圖顯示完全不受影響
 function preprocessForOCR(imgSrc) {
     return new Promise((resolve) => {
         const img = new Image();
         img.onload = () => {
-            // ── 步驟 1：ROI 切割 ──
-            // 楓之谷拍賣行截圖，價格固定在右側區域
-            // 跳過最左側 23%（物品圖示＋數量標示），避免圖示上的「1」被誤辨為價格
-            const roiStartX = Math.floor(img.width * 0.23);
-            const roiWidth  = img.width - roiStartX;
-
             const SCALE = 4; // 放大 4 倍，小字辨識更準
             const canvas = document.createElement('canvas');
-            canvas.width  = roiWidth  * SCALE;
+            canvas.width = img.width * SCALE;
             canvas.height = img.height * SCALE;
             const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-            // 裁切 + 放大一步完成：只把 ROI 畫進 canvas
-            ctx.drawImage(
-                img,
-                roiStartX, 0, roiWidth, img.height,  // 來源：裁切範圍
-                0, 0, canvas.width, canvas.height      // 目標：整張 canvas
-            );
-
-            // ── 步驟 2：計算平均亮度，判斷深色 / 淺色背景 ──
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const d = imageData.data;
 
+            // 計算平均亮度，判斷是深色還是淺色背景
             let brightnessSum = 0;
             for (let i = 0; i < d.length; i += 4) {
                 brightnessSum += 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
@@ -485,17 +473,17 @@ function preprocessForOCR(imgSrc) {
             const avgBrightness = brightnessSum / (d.length / 4);
             const isDarkBg = avgBrightness < 128; // 深色背景自動反色
 
-            // ── 步驟 3：灰階 + 反色（深色背景）+ 對比強化（修正公式）+ 二值化 ──
-            const CONTRAST  = 1.8;  // 1 = 無效果，>1 = 增強；修正後公式不會溢出
-            const threshold = isDarkBg ? 155 : 145;
-
             for (let i = 0; i < d.length; i += 4) {
+                // 灰階
                 let gray = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
                 // 深色背景反色，讓文字變深、背景變白
                 if (isDarkBg) gray = 255 - gray;
-                // 正確對比公式：以 128 為中心拉伸，不會產生負數分母
-                const val = Math.min(255, Math.max(0, CONTRAST * (gray - 128) + 128));
-                // 二值化
+                // 對比強化
+                const contrast = 2.2;
+                const factor = (259 * (contrast * 255 + 255)) / (255 * (259 - contrast * 255));
+                const val = Math.min(255, Math.max(0, factor * (gray - 128) + 128));
+                // 二值化（反色後亮字變暗，門檻調高一點）
+                const threshold = isDarkBg ? 160 : 140;
                 const bw = val < threshold ? 0 : 255;
                 d[i] = d[i+1] = d[i+2] = bw;
                 d[i+3] = 255;
@@ -509,22 +497,16 @@ function preprocessForOCR(imgSrc) {
 
 // 從 OCR 文字中解析最大金額
 function parseAmountFromText(text) {
-    // 優先策略：帶逗號的標準金額格式（如 21,499,999）最可靠
-    const withComma = text.match(/\d{1,3}(?:,\d{3})+/g) || [];
-    const commaNums = withComma
-        .map(s => parseInt(s.replace(/,/g, '')))
-        .filter(n => n >= 100000); // 至少 10 萬，排除圖示小數字
-
-    if (commaNums.length > 0) {
-        return Math.max(...commaNums); // 有逗號格式最可靠，直接回傳最大值
-    }
-
-    // 備援策略：純數字（無逗號），需更嚴格的長度限制（至少 6 位 = 100,000+）
-    const plainNums = text.replace(/[^\d\s]/g, ' ')
-        .match(/\d{6,15}/g) || [];
-    const filtered = plainNums.map(Number).filter(n => n >= 100000);
-
-    return filtered.length > 0 ? Math.max(...filtered) : null;
+    // 保留數字與逗號，再把有逗號分隔的數字合併
+    const cleaned = text.replace(/[^\d,\n]/g, ' ');
+    // 匹配「有逗號的數字」如 21,499,999 或純數字
+    const withComma = cleaned.match(/\d{1,3}(?:,\d{3})+/g) || [];
+    const plain = cleaned.replace(/,/g, '').match(/\d{5,15}/g) || [];
+    const allNums = [
+        ...withComma.map(s => parseInt(s.replace(/,/g, ''))),
+        ...plain.map(Number)
+    ].filter(n => n >= 10000);
+    return allNums.length > 0 ? Math.max(...allNums) : null;
 }
 
 // 全域 Tesseract worker，只初始化一次
@@ -532,10 +514,10 @@ let _ocrWorker = null;
 async function getOCRWorker() {
     if (!_ocrWorker) {
         _ocrWorker = await Tesseract.createWorker('eng');
+        // 允許逗號，讓 21,499,999 能被完整辨識
         await _ocrWorker.setParameters({
             tessedit_char_whitelist: '0123456789,',
-            tessedit_pageseg_mode: '6',  // 
-            tessedit_ocr_engine_mode: '1', // LSTM only，精準度更高
+            tessedit_pageseg_mode: '6', // 當作一塊文字處理
         });
     }
     return _ocrWorker;
