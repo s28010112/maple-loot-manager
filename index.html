@@ -71,10 +71,13 @@
     .status-pending { background: #fff; color: var(--blue); }
     .status-sold { background: var(--success); color: #fff; }
 
-    .img-area { width: 100%; border: 2px dashed #ffcc66; border-radius: 10px; margin-bottom: 15px; background: #fafafa; cursor: pointer; overflow: hidden; min-height: 100px; display: flex; align-items: center; justify-content: center; position: relative; }
-    .img-area img { width: 100%; height: auto; object-fit: contain; }
+    .img-area { width: 100%; border: 2px dashed #ffcc66; border-radius: 10px; margin-bottom: 12px; background: #fafafa; cursor: pointer; overflow: hidden; min-height: 60px; max-height: 160px; display: flex; align-items: center; justify-content: center; position: relative; }
+    .img-area img { width: 100%; height: 100%; object-fit: contain; display: block; }
     
-    .data-row { display: grid; grid-template-columns: 1fr 0.8fr 0.8fr; gap: 15px; }
+    .data-row { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 10px; overflow: hidden; }
+    .data-row > div { min-width: 0; overflow: hidden; }
+    .data-row input { width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+    .data-row .num-val { font-weight: 900; font-size: 14px; word-break: break-all; }
     .total-summary { background: var(--maple); color: white; padding: 25px; border-radius: 14px; text-align: right; margin-top: 10px; box-shadow: 0 6px 0 #cc7a00; }
     .side-card { background: #fff; border: 2px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 20px; box-shadow: 0 5px 0 #ddaa77; }
     
@@ -167,10 +170,6 @@
                 <button onclick="clearRoomData()" class="btn no-export" style="background:var(--danger); font-size:11px; padding:3px 8px; margin-left:10px; box-shadow:0 2px 0 #cc0000;">🗑️ 清除此房間資料</button>
             </div>
         </div>
-        <div style="text-align: right; background: #fff; padding: 15px 30px; border: 3px solid var(--maple); border-radius: 12px; box-shadow: 0 4px 0 var(--maple);">
-            <small style="font-weight:900; color:#9a8877; display:block;">每人實收分紅</small>
-            <span id="displayIndividual" style="font-size: 52px; font-weight: 900; color: var(--maple); font-family: monospace;">0</span>
-        </div>
     </header>
 
 <div class="main-grid">
@@ -179,15 +178,7 @@
             <h3 class="card-title">戰利品清單</h3>
             <button onclick="addRow()" class="btn">＋ 新增戰利品</button>
         </div>
-        <div id="lootContainer"></div>
-
-        <div class="total-summary">
-            <div style="font-size:14px; opacity:0.9; margin-bottom:4px;">全數售出預估 (稅後)：<span id="displayExpectTotal">0</span></div>
-            <div style="font-size:14px; color:#ffeb3b; margin-bottom:4px; font-weight:800;">目前已售實收：<span id="displayRawTotal">0</span></div>
-            <div style="font-size:14px; opacity:0.9; border-bottom:1px solid rgba(255,255,255,0.3); padding-bottom:8px; margin-bottom:8px;">剪刀天氣成本扣除：-<span id="displayScissorTotal">0</span></div>
-            <span style="font-weight:900; font-size:18px;">實收總盈餘：</span>
-            <span id="displayTotal" style="font-size:42px; font-weight:900; margin-left:10px;">0</span>
-        </div>
+        <div id="lootContainer" style="display:grid; grid-template-columns: 1fr; gap: 16px;"></div>
         <button onclick="exportImage()" class="btn btn-export no-export">📸 匯出高清報帳圖</button>
     </div>
 
@@ -253,7 +244,20 @@
             </div>
             <div style="text-align:right; font-size:14px; color:var(--muted);">天氣小計: <span id="sc3_total" style="font-weight:800;">0</span></div>
         </div>
-		<h3 class="card-title no-export">物魔攻換算工具</h3>
+
+        <div class="total-summary">
+            <div style="font-size:14px; opacity:0.9; margin-bottom:4px;">全數售出預估 (稅後)：<span id="displayExpectTotal">0</span></div>
+            <div style="font-size:14px; color:#ffeb3b; margin-bottom:4px; font-weight:800;">目前已售實收：<span id="displayRawTotal">0</span></div>
+            <div style="font-size:14px; opacity:0.9; border-bottom:1px solid rgba(255,255,255,0.3); padding-bottom:8px; margin-bottom:8px;">剪刀天氣成本扣除：-<span id="displayScissorTotal">0</span></div>
+            <span style="font-weight:900; font-size:18px;">實收總盈餘：</span>
+            <span id="displayTotal" style="font-size:42px; font-weight:900; margin-left:10px;">0</span>
+        </div>
+
+        <div style="text-align: right; background: #fff; padding: 15px 30px; border: 3px solid var(--maple); border-radius: 12px; box-shadow: 0 4px 0 var(--maple); margin-top: 20px;">
+            <small style="font-weight:900; color:#9a8877; display:block;">每人實收分紅</small>
+            <span id="displayIndividual" style="font-size: 52px; font-weight: 900; color: var(--maple); font-family: monospace;">0</span>
+        </div>
+        <h3 class="card-title no-export" style="margin-top: 20px;">物魔攻換算工具</h3>
 		<div class="side-card no-export">
 		<div style="display:flex; flex-direction:column; margin-bottom:15px;">
 			<label style="font-size:12px; color:var(--muted); font-weight:900;">總物魔攻 (裝備+增益+被動)</label>
@@ -428,8 +432,9 @@ function render() {
         const tradeBtnClass = isPlayer ? 'trade-mode-btn custom-mode no-export' : 'trade-mode-btn no-export';
         const tradeBtnTitle = isPlayer ? '玩家直交 (6%)' : '拍賣行';
         const netLabel = isPlayer ? '實收（6%）' : '實收';
+        const spanStyle = '';
         return `
-        <div class="loot-card ${i.status === 'sold' ? 'is-sold' : ''}">
+        <div class="loot-card ${i.status === 'sold' ? 'is-sold' : ''}" style="${spanStyle}">
             <div class="status-badge ${i.status === 'sold' ? 'status-sold' : 'status-pending'}" onclick="toggleStatus(${i.id})">
                 ${i.status === 'sold' ? '✓ 已售出' : '⏳ 待售中'}
             </div>
@@ -441,7 +446,7 @@ function render() {
             <div class="data-row">
                 <div><label style="font-size:11px; color:var(--muted);">物品</label><input type="text" value="${i.name}" oninput="items.find(x=>x.id===${i.id}).name=this.value; saveAndCalc()" style="width:100%; border:none; font-weight:800; background:transparent;"></div>
                 <div><label style="font-size:11px; color:var(--muted);">成交</label><input type="number" value="${i.price}" oninput="items.find(x=>x.id===${i.id}).price=+this.value; saveAndCalc()" style="width:100%; border:none; font-weight:800; color:var(--maple); background:transparent;"></div>
-                <div><label style="font-size:11px; color:var(--muted);">${netLabel}</label><div style="font-weight:900; ${isPlayer ? 'color:#a855f7;' : ''}">${net.toLocaleString()}</div></div>
+                <div><label style="font-size:11px; color:var(--muted);">${netLabel}</label><div class="num-val" style="${isPlayer ? 'color:#a855f7;' : ''}">${net.toLocaleString()}</div></div>
             </div>
             <button class="${tradeBtnClass}" onclick="openTradePopup(${i.id})" title="${tradeBtnTitle}">${tradeIcon}</button>
             <button class="no-export" onclick="items=items.filter(x=>x.id!==${i.id}); render(); saveAndCalc()" style="position:absolute; top:5px; right:4.5px; background:none; border:none; color:var(--danger); cursor:pointer; font-size:18px;">✕</button>
@@ -523,12 +528,29 @@ async function getOCRWorker() {
     return _ocrWorker;
 }
 
+// 壓縮圖片至指定最大寬度與品質，避免 Firebase 1MB 文件限制
+function compressImage(dataUrl, maxWidth = 800, quality = 0.75) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const scale = img.width > maxWidth ? maxWidth / img.width : 1;
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width * scale;
+            canvas.height = img.height * scale;
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = dataUrl;
+    });
+}
+
 async function handlePaste(id, e) {
     const file = e.clipboardData.files[0]; if (!file) return;
     const reader = new FileReader();
     const item = items.find(i => i.id === id);
     reader.onload = async (ev) => {
-        item.img = ev.target.result;
+        const compressed = await compressImage(ev.target.result);
+        item.img = compressed;
         item._ocr = 'loading';
         render();
         try {
@@ -600,19 +622,49 @@ function toggleReceive(idx) {
     saveAndCalc();
 }
 
-function addRow() { items.push({ id: Date.now(), name: '', price: 0, img: null, status: 'pending' }); render(); saveAndCalc(); }
+function addRow() { items.unshift({ id: Date.now(), name: '', price: 0, img: null, status: 'pending' }); render(); saveAndCalc(); }
 function addMem() { const inp = document.getElementById('memInp'); if(inp.value){members.push({name:inp.value, received: false}); inp.value=''; saveAndCalc();} }
 
 async function exportImage() {
     const area = document.getElementById('captureArea');
+    const lootContainer = document.getElementById('lootContainer');
     const noExports = document.querySelectorAll('.no-export');
     noExports.forEach(el => el.style.display = 'none');
+
+    // 截圖時改左右兩欄，讓戰利品與隊員欄並排顯示
+    const mainGrid = document.querySelector('.main-grid');
+    lootContainer.style.gridTemplateColumns = '1fr 1fr';
+    mainGrid.style.gridTemplateColumns = '1fr 480px';
+
+    // html2canvas 對 input 渲染不穩定，截圖前用 span 取代顯示
+    const inputs = area.querySelectorAll('input');
+    const inputBackups = [];
+    inputs.forEach(inp => {
+        const span = document.createElement('span');
+        span.textContent = inp.value;
+        const computedColor = window.getComputedStyle(inp).color;
+        const computedWeight = window.getComputedStyle(inp).fontWeight;
+        span.style.cssText = `font-size:14px; font-weight:900; font-family:inherit; display:inline-block; width:100%; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:${computedColor};`;
+        inp.parentNode.insertBefore(span, inp);
+        inp.style.display = 'none';
+        inputBackups.push({ inp, span });
+    });
+
     try {
-        const canvas = await html2canvas(area, { backgroundColor: "#fdfaf4", scale: 2 });
+        const canvas = await html2canvas(area, { backgroundColor: "#fdfaf4", scale: 2, useCORS: true });
         const link = document.createElement('a');
         link.download = `楓星報帳_${new Date().toLocaleTimeString()}.png`;
         link.href = canvas.toDataURL(); link.click();
-    } finally { noExports.forEach(el => el.style.display = ''); }
+    } finally {
+        // 還原所有 input
+        inputBackups.forEach(({ inp, span }) => {
+            inp.style.display = '';
+            span.remove();
+        });
+        noExports.forEach(el => el.style.display = '');
+        lootContainer.style.gridTemplateColumns = '1fr';
+        mainGrid.style.gridTemplateColumns = '';
+    }
 }
 
 function openPdfModal() { document.getElementById('pdfModal').classList.add('open'); document.body.style.overflow='hidden'; }
